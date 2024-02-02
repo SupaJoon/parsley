@@ -1,11 +1,13 @@
 import { LogTypes } from "constants/enums";
 import { useLogContext } from "context/LogContext";
 import { useHighlightParam } from "hooks/useHighlightParam";
+import { CommandEntry } from "hooks/useSections";
 import { ProcessedLogLines } from "types/logs";
 import { isCollapsedRow } from "utils/collapsedRow";
 import AnsiRow from "../AnsiRow";
 import CollapsedRow from "../CollapsedRow";
 import ResmokeRow from "../ResmokeRow";
+import SectionRow from "../SectionRow";
 
 type RowRendererFunction = (props: {
   processedLogLines: ProcessedLogLines;
@@ -40,10 +42,18 @@ const ParsleyRow: RowRendererFunction = ({ logType, processedLogLines }) => {
 
   const result = (index: number) => {
     const processedLogLine = processedLogLines[index];
-    if (isCollapsedRow(processedLogLine)) {
+    if (processedLogLine.type === "section") {
+      return (
+        <SectionRow
+          lineIndex={index}
+          metadata={processedLogLine.commands as CommandEntry[]}
+        />
+      );
+    }
+    if (isCollapsedRow(processedLogLine.line)) {
       return (
         <CollapsedRow
-          collapsedLines={processedLogLine}
+          collapsedLines={processedLogLine.line as number[]}
           expandLines={expandLines}
           lineIndex={index}
         />
@@ -56,7 +66,7 @@ const ParsleyRow: RowRendererFunction = ({ logType, processedLogLines }) => {
         getResmokeLineColor={getResmokeLineColor}
         highlightRegex={highlightRegex}
         lineIndex={index}
-        lineNumber={processedLogLine}
+        lineNumber={processedLogLine.line as number}
         prettyPrint={prettyPrint}
         range={range}
         scrollToLine={scrollToLine}

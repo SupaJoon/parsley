@@ -22,6 +22,7 @@ import { FilterLogic, LogTypes, WordWrapFormat } from "constants/enums";
 import { QueryParams } from "constants/queryParams";
 import { useFilterParam } from "hooks/useFilterParam";
 import { useQueryParam } from "hooks/useQueryParam";
+import { UseSectionsResult, useSections } from "hooks/useSections";
 import { ExpandedLines, ProcessedLogLines } from "types/logs";
 import filterLogs from "utils/filterLogs";
 import { getMatchingLines } from "utils/matchingLines";
@@ -31,7 +32,7 @@ import useLogState from "./state";
 import { DIRECTION, LogMetadata, Preferences, SearchState } from "./types";
 import { getNextPage } from "./utils";
 
-interface LogContextState {
+interface LogContextState extends UseSectionsResult {
   expandedLines: ExpandedLines;
   hasLogs: boolean | null;
   lineCount: number;
@@ -46,7 +47,6 @@ interface LogContextState {
   };
   searchLine?: number;
   searchState: SearchState;
-
   clearExpandedLines: () => void;
   clearLogs: () => void;
   collapseLines: (idx: number) => void;
@@ -84,39 +84,38 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
   const [bookmarks] = useQueryParam<number[]>(QueryParams.Bookmarks, []);
   const [shareLine] = useQueryParam<number | undefined>(
     QueryParams.ShareLine,
-    undefined,
+    undefined
   );
   const [lowerRange] = useQueryParam(QueryParams.LowerRange, 0);
   const [upperRange] = useQueryParam<undefined | number>(
     QueryParams.UpperRange,
-    undefined,
+    undefined
   );
 
   // Wrap settings are evaluated after the logs have initially rendered - see LogPane component.
   const [wrap, setWrap] = useState(false);
   const [filterLogic, setFilterLogic] = useQueryParam(
     QueryParams.FilterLogic,
-    (Cookie.get(FILTER_LOGIC) as FilterLogic) ?? FilterLogic.And,
+    (Cookie.get(FILTER_LOGIC) as FilterLogic) ?? FilterLogic.And
   );
   const [expandableRows, setExpandableRows] = useQueryParam(
     QueryParams.Expandable,
-    Cookie.get(EXPANDABLE_ROWS) ? Cookie.get(EXPANDABLE_ROWS) === "true" : true,
+    Cookie.get(EXPANDABLE_ROWS) ? Cookie.get(EXPANDABLE_ROWS) === "true" : true
   );
   const [prettyPrint, setPrettyPrint] = useState(
-    Cookie.get(PRETTY_PRINT_BOOKMARKS) === "true",
+    Cookie.get(PRETTY_PRINT_BOOKMARKS) === "true"
   );
   const [zebraStriping, setZebraStriping] = useState(
-    Cookie.get(ZEBRA_STRIPING) === "true",
+    Cookie.get(ZEBRA_STRIPING) === "true"
   );
   const [wordWrapFormat, setWordWrapFormat] = useState(
     (Cookie.get(WRAP_FORMAT) as WordWrapFormat)
       ? (Cookie.get(WRAP_FORMAT) as WordWrapFormat)
-      : WordWrapFormat.Standard,
+      : WordWrapFormat.Standard
   );
-
   const { dispatch, state } = useLogState(initialLogLines);
   const [processedLogLines, setProcessedLogLines] = useState<ProcessedLogLines>(
-    [],
+    []
   );
   const listRef = useRef<PaginatedVirtualListRef>(null);
 
@@ -132,9 +131,10 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
       stringifiedExpandedLines,
       state.logs.length,
       filterLogic,
-    ],
+    ]
   );
 
+  const sections = useSections(state.logs);
   useEffect(
     () => {
       setProcessedLogLines(
@@ -144,8 +144,10 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
           expandedLines: state.expandedLines,
           logLines: state.logs,
           matchingLines,
+          sectionData: sections.sectionData,
           shareLine,
-        }),
+          visibleSectionLines: sections.visibleSectionLines,
+        })
       );
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -156,13 +158,15 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
       shareLine,
       stringifiedExpandedLines,
       expandableRows,
-    ],
+      sections.sectionData,
+      sections.visibleSectionLines,
+    ]
   );
 
   const getLine = useCallback(
     (lineNumber: number) => state.logs[lineNumber],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [state.logs.length],
+    [state.logs.length]
   );
 
   const getResmokeLineColor = useCallback(
@@ -174,7 +178,7 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
       const colorMapping = getColorMapping(lineContent, state.colorMapping);
       return colorMapping !== undefined ? colorMapping.color : undefined;
     },
-    [getLine, state.colorMapping],
+    [getLine, state.colorMapping]
   );
 
   const scrollToLine = useCallback((lineNumber: number) => {
@@ -223,14 +227,14 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
     (lines: string[], logType: LogTypes) => {
       dispatch({ logType, logs: lines, type: "INGEST_LOGS" });
     },
-    [dispatch],
+    [dispatch]
   );
 
   const setLogMetadata = useCallback(
     (logMetadata: LogMetadata) => {
       dispatch({ logMetadata, type: "SET_LOG_METADATA" });
     },
-    [dispatch],
+    [dispatch]
   );
   const memoizedContext = useMemo(
     () => ({
@@ -284,6 +288,7 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
       },
       searchLine,
       searchState: state.searchState,
+      ...sections,
 
       clearExpandedLines: () => dispatch({ type: "CLEAR_EXPANDED_LINES" }),
       clearLogs: () => dispatch({ type: "CLEAR_LOGS" }),
@@ -337,7 +342,8 @@ const LogContextProvider: React.FC<LogContextProviderProps> = ({
       setExpandableRows,
       setFilterLogic,
       setLogMetadata,
-    ],
+      sections,
+    ]
   );
 
   return (

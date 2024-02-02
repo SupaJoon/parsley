@@ -1,3 +1,4 @@
+import { CommandEntry, SectionData } from "hooks/useSections";
 import { ExpandedLines, ProcessedLogLines } from "types/logs";
 import { isCollapsedRow } from "utils/collapsedRow";
 import { isExpanded } from "utils/expandedLines";
@@ -9,6 +10,8 @@ type FilterLogsParams = {
   shareLine: number | undefined;
   expandedLines: ExpandedLines;
   expandableRows: boolean;
+  sectionData: SectionData;
+  visibleSectionLines: Set<string>;
 };
 
 /**
@@ -23,47 +26,86 @@ type FilterLogsParams = {
  * @returns an array of numbers that indicates which log lines should be displayed, and which log lines
  * should be collapsed
  */
-const filterLogs = (options: FilterLogsParams): (number | number[])[] => {
+const filterLogs = (options: FilterLogsParams): ProcessedLogLines => {
   const {
     bookmarks,
     expandableRows,
     expandedLines,
     logLines,
     matchingLines,
+    sectionData,
     shareLine,
+    visibleSectionLines,
   } = options;
+
+  const lineStartMap:
+    | { [key: number]: Omit<CommandEntry, "status">[] }
+    | undefined = sectionData?.reduce((accum, value) => {
+    const { lineStart } = value[0];
+    return { ...accum, [lineStart]: value };
+  }, {});
+
   // If there are no filters or expandable rows is not enabled, then we don't have to do any
   // processing.
   if (matchingLines === undefined) {
-    return logLines.map((_, idx) => idx);
+    if (lineStartMap) {
+      const processedLines = [] as ProcessedLogLines;
+      let sectionEnd;
+
+      for (let lineNumber = 0; lineNumber < logLines.length; lineNumber++) {
+        const section = lineStartMap[lineNumber];
+        if (section) {
+          sectionEnd = section[section.length - 1];
+          if (sectionEnd.lineEnd === undefined) {
+            throw new Error(
+              "Section end line end is undefined.... debug this... lol"
+            );
+          }
+          const arr = Array.from(
+            { length: (sectionEnd?.lineEnd || lineNumber) - lineNumber },
+            (_, k: number) => k + lineNumber
+          );
+          processedLines.push({
+            commands: section,
+            line: arr,
+            type: "section",
+          });
+        }
+        if (!sectionEnd) {
+          processedLines.push({ line: lineNumber });
+        } else if (
+          sectionEnd?.lineEnd &&
+          ((sectionEnd.lineEnd >= lineNumber &&
+            visibleSectionLines.has(sectionEnd.functionName)) ||
+            sectionEnd.lineEnd < lineNumber)
+        ) {
+          processedLines.push({ line: lineNumber });
+        }
+      }
+      return processedLines;
+    }
   }
 
   const filteredLines: ProcessedLogLines = [];
-
   logLines.reduce((arr, _logLine, idx) => {
-    // Bookmarks, expanded lines, and the share line should always remain uncollapsed.
+    // Render Bookmarks, explicitly expanded lines (expandedLines intervals), and shareLine and any filter matches
     if (
       bookmarks.includes(idx) ||
       shareLine === idx ||
-      isExpanded(idx, expandedLines)
+      isExpanded(idx, expandedLines) ||
+      matchingLines?.has(idx)
     ) {
-      arr.push(idx);
+      arr.push({ line: idx });
       return arr;
     }
 
-    // If the line matches the filters, it should remain uncollapsed.
-    if (matchingLines.has(idx)) {
-      arr.push(idx);
-      return arr;
-    }
-
+    // Everything else is collapsed
     if (expandableRows) {
-      // If the line doesn't match the filters, collapse it.
       const previousItem = arr[arr.length - 1];
-      if (isCollapsedRow(previousItem)) {
-        previousItem.push(idx);
+      if (isCollapsedRow(previousItem.line)) {
+        (previousItem.line as number[]).push(idx);
       } else {
-        arr.push([idx]);
+        arr.push({ line: [idx] });
       }
     }
     return arr;

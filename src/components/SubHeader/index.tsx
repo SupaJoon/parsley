@@ -5,12 +5,13 @@ import Icon from "components/Icon";
 import { size, subheaderHeight } from "constants/tokens";
 import { useLogContext } from "context/LogContext";
 import { EvergreenTaskSubHeader } from "./EvergreenTaskSubHeader";
+import Button from "@leafygreen-ui/button";
 
 const { gray } = palette;
 
 interface SubHeaderProps {}
 const SubHeader: React.FC<SubHeaderProps> = () => {
-  const { logMetadata } = useLogContext();
+  const { closeAllSections, expandAllSections, logMetadata } = useLogContext();
   const {
     buildID,
     execution,
@@ -53,6 +54,12 @@ const SubHeader: React.FC<SubHeaderProps> = () => {
           )}
         </Header>
       )}
+      <Button onClick={() => closeAllSections()} size="xsmall">
+        Close all sections
+      </Button>
+      <Button onClick={() => expandAllSections()} size="xsmall">
+        Expand all sections
+      </Button>
     </Container>
   );
 };
